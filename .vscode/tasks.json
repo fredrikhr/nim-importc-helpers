@@ -22,20 +22,6 @@
             "problemMatcher": "$tsc-watch"
         },
         {
-            "taskName": "Build",
-            "suppressTaskName": true,
-            "command": "nimble",
-            "echoCommand": true,
-            "args": [ 
-                "build"
-            ],
-            "isBuildCommand": true,
-            "options": {
-                "cwd": "${workspaceRoot}"
-            },
-            "problemMatcher": "$tsc-watch"
-        },
-        {
             "taskName": "Generate documentation",
             "suppressTaskName": true,
             "command": "nimble",
@@ -57,6 +43,20 @@
                 "test"
             ],
             "isTestCommand": true,
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": "$tsc-watch"
+        },
+        {
+            "taskName": "Build",
+            "suppressTaskName": true,
+            "command": "nimble",
+            "echoCommand": true,
+            "args": [
+                "debugBuild"
+            ],
+            "isBuildCommand": true,
             "options": {
                 "cwd": "${workspaceRoot}"
             },
