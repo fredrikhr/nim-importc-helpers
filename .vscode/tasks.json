@@ -1,0 +1,66 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "0.1.0",
+    "isShellCommand": true,
+    "showOutput": "always",
+    "tasks": [
+        {
+            "taskName": "Compile Only",
+            "suppressTaskName": true,
+            "command": "nim",
+            "echoCommand": true,
+            "args": [
+                "compile",
+                "-c",
+                "--nimcache:obj",
+                "${file}"
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": "$tsc-watch"
+        },
+        {
+            "taskName": "Build",
+            "suppressTaskName": true,
+            "command": "nimble",
+            "echoCommand": true,
+            "args": [ 
+                "build"
+            ],
+            "isBuildCommand": true,
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": "$tsc-watch"
+        },
+        {
+            "taskName": "Generate documentation",
+            "suppressTaskName": true,
+            "command": "nimble",
+            "echoCommand": true,
+            "args": [
+                "docall"
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": "$tsc-watch"
+        },
+        {
+            "taskName": "Test",
+            "suppressTaskName": true,
+            "command": "nimble",
+            "echoCommand": true,
+            "args": [
+                "test"
+            ],
+            "isTestCommand": true,
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "problemMatcher": "$tsc-watch"
+        }
+    ]
+}
