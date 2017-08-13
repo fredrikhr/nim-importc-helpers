@@ -1,3 +1,23 @@
+## Provides macros to auto-implement procs for distinct types that have been
+## declared to represent groups of C define symbols.
+##
+## For the most this module differentiates between two variations of dinstinct
+## types:
+## Distinct Value types:
+##     Like an enum type, but with an actual base type, so that the values can
+##     be used in ``importc`` calls.
+##     
+##     In C, this would typically manifest itself as multiple ``#define``
+##     statements each with a common prefix and an all caps identifier
+##
+##     The HRESULT Values in the Windows SDK as documented on MSDN are a good
+##     example of this. (ref.: https://msdn.microsoft.com/en-us/library/cc704587.aspx )
+##
+## Distinct Flag types:
+##     Similar to the one above, but with the values being arranged for a 
+##     bit-pattern. Flag types also require the binary ``and``, ``or`` and ``not``
+##     operators to be useful.
+
 import macros, strutils, unicode
 
 proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string, returnType: NimNode = ident("bool"), exportable: bool = true, docString: string = nil): NimNode =
@@ -96,7 +116,7 @@ proc createStringParseProc(`distinct`, values: NimNode, tryParse = false, export
         branchStmts.add(newAssignment(targetIdent, value))
         branchStmts.add(resultTrueAssignment)
       else:
-        branchStmts.add(newAssignment(resultIdent, value))
+        branchStmts = newAssignment(resultIdent, value)
       let branchNode = newNimNode(nnkElifBranch)
       branchNode.add(condition, branchStmts)
       ifStmt.add(branchNode)
@@ -105,7 +125,7 @@ proc createStringParseProc(`distinct`, values: NimNode, tryParse = false, export
     if tryParse:
       elseStmts.add(resultFalseAssignment)
     else:
-      elseStmts.add(raiseStmt)
+      elseStmts = raiseStmt
     elseBranch.add(elseStmts)
     ifStmt.add(elseBranch)
     procBody.add(ifStmt)
