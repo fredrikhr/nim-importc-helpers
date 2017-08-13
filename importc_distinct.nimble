@@ -1,7 +1,7 @@
 # Package
 
 packageName   = "importc_distinct"
-version       = "0.1.1"
+version       = "0.1.2"
 author        = "Fredrik H\x9Bis\x91ther Rasch"
 description   = "Nim support library for importing enum and flag types from C to fully implemented distinct types"
 license       = "MIT"
