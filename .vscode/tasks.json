@@ -47,20 +47,6 @@
                 "cwd": "${workspaceRoot}"
             },
             "problemMatcher": "$tsc-watch"
-        },
-        {
-            "taskName": "Build",
-            "suppressTaskName": true,
-            "command": "nimble",
-            "echoCommand": true,
-            "args": [
-                "debugBuild"
-            ],
-            "isBuildCommand": true,
-            "options": {
-                "cwd": "${workspaceRoot}"
-            },
-            "problemMatcher": "$tsc-watch"
         }
     ]
 }
