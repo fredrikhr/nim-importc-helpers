@@ -24,6 +24,7 @@ task docall, "Document srcDir recursively":
     for srcFile in listFiles(srcDir):
       if not srcFile.endsWith(".nim"):
         echo "skipping non nim file: $#" % [srcFile]
+        continue
       const htmlExt = ".html"
       let docFile = docDir & srcFile[srcDir.len ..^ htmlExt.len] & htmlExt
       echo "file: $# -> $#" % [srcFile, docFile]
