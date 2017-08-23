@@ -69,8 +69,6 @@ proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string, returnType
   result = newProc(
     name = procName, params = [returnType, argsIdentDefs],
     body = procBody)
-  when not(defined(release)) or defined(debug):
-    echo result.repr
 
 proc createStringifyOperator(`distinct`, base: NimNode, values: openarray[NimNode], exportable: bool = true, docString: string = nil): NimNode =
   var procBody = newStmtList()
@@ -104,8 +102,6 @@ proc createStringifyOperator(`distinct`, base: NimNode, values: openarray[NimNod
     params = [newIdentNode("string"), newIdentDefs(valueIdent, `distinct`)],
     body = procBody)
   result = procDef
-  when not(defined(release)) or defined(debug):
-    echo result.repr
 
 proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryParse = false, exportable = true): NimNode =
   let
@@ -180,8 +176,6 @@ proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryP
       pragmaExpr = newColonExpr(ident("raises"), bracket)
     procDef.addPragma(pragmaExpr)
   result = procDef
-  when not(defined(release)) or defined(debug):
-    echo result.repr
 
 proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray[NimNode]): NimNode {.compileTime.} =
   ## Declares common procs for a distinct value type with the specified base type
