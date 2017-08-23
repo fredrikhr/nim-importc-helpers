@@ -20,6 +20,38 @@
 
 import macros, strutils, unicode
 
+proc getDistinctAndBaseSym(t: typedesc): tuple[`distinct`, base: NimNode] {.compileTime.} =
+  var beD = t.getType()
+  beD.expectKind(nnkBracketExpr)
+  beD.expectMinLen(2)
+  let dSym = beD[1]
+  dSym.expectKind(nnkSym)
+  let beB = dSym.getType()
+  beB.expectKind(nnkBracketExpr)
+  beB.expectMinLen(2)
+  let bSym = beB[1]
+  result = (dSym, bSym)
+
+proc getIdentAndStrLit(value: NimNode): tuple[ident, strLit: NimNode] {.compileTime.} =
+  var strLit, ident: NimNode
+  case value.kind
+  of nnkPragmaExpr:
+    value.expectMinLen(1)
+    return value[0].getIdentAndStrLit
+  of nnkPostfix:
+    value.expectMinLen(2)
+    return value[1].getIdentAndStrLit
+  of nnkSym, nnkIdent:
+    ident = value
+    strLit = newLit($ident)
+  of nnkAccQuoted:
+    ident = value
+    ident.expectLen(1)
+    ident[0].expectKind({nnkSym, nnkIdent})
+    strLit = newLit($ident)
+  else: ident.expectKind({nnkSym, nnkIdent, nnkAccQuoted})
+  result = (ident, strLit)
+
 proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string, returnType: NimNode = ident("bool"), exportable: bool = true, docString: string = nil): NimNode =
   let
     leftArgIdent = ident("a")
@@ -37,9 +69,10 @@ proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string, returnType
   result = newProc(
     name = procName, params = [returnType, argsIdentDefs],
     body = procBody)
-  when defined(debug): echo repr(result)
+  when not(defined(release)) or defined(debug):
+    echo result.repr
 
-proc createStringifyOperator(`distinct`, base, values: NimNode, exportable: bool = true, docString: string = nil): NimNode =
+proc createStringifyOperator(`distinct`, base: NimNode, values: openarray[NimNode], exportable: bool = true, docString: string = nil): NimNode =
   var procBody = newStmtList()
   var docComment = newNimNode(nnkCommentStmt)
   if docString.isNil or docString.len < 1:
@@ -52,28 +85,29 @@ proc createStringifyOperator(`distinct`, base, values: NimNode, exportable: bool
   let
     valueIdent = ident("v")
     stringify = newNimNode(nnkAccQuoted).add(ident("$"))
-  var caseStmt = newNimNode(nnkCaseStmt).add(valueIdent)
+    elseValue = prefix(newDotExpr(valueIdent, base), "$")
   if values.len > 0:
-    for value in values.children:
-      var strLit: NimNode
-      case value.kind
-      of nnkIdent, nnkSym:
-        strLit = newLit(unicode.toUpper($value))
-      of nnkAccQuoted:
-        value.expectLen(1)
-        value[0].expectKind({nnkIdent, nnkSym})
-        strLit = newLit(unicode.toUpper($value[0]))
-      else: value.expectKind({nnkIdent, nnkSym, nnkAccQuoted})
-      caseStmt.add(newNimNode(nnkOfBranch).add(value, strLit))
-  caseStmt.add(newNimNode(nnkElse).add(prefix(newDotExpr(valueIdent, base), "$")))
-  procBody.add(caseStmt)
+    var ifStmt = newNimNode(nnkIfExpr)
+    for value in values:
+      let
+        identLitTuple = value.getIdentAndStrLit()
+        ident = identLitTuple.ident
+        strLit = newLit(unicode.toUpper(identLitTuple.strLit.strVal))
+      let cond = infix(valueIdent, "==", ident)
+      ifStmt.add(newNimNode(nnkElifExpr).add(cond, strLit))
+    ifStmt.add(newNimNode(nnkElseExpr).add(elseValue))
+    procBody.add(ifStmt)
+  else:
+    procBody.add(elseValue)
   let procDef = newProc(
     name = if exportable: postfix(stringify, "*") else: stringify,
     params = [newIdentNode("string"), newIdentDefs(valueIdent, `distinct`)],
     body = procBody)
   result = procDef
+  when not(defined(release)) or defined(debug):
+    echo result.repr
 
-proc createStringParseProc(`distinct`, values: NimNode, tryParse = false, exportable = true): NimNode =
+proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryParse = false, exportable = true): NimNode =
   let
     procIdent = if tryParse: ident("tryParse" & $`distinct`) else: ident("parse" & $`distinct`)
     inputIdent = ident("s")
@@ -99,24 +133,19 @@ proc createStringParseProc(`distinct`, values: NimNode, tryParse = false, export
   procBody.add(docComment)
   if values.len > 0:
     var ifStmt = newNimNode(nnkIfStmt)
-    for value in values.children:
-      var strLit: NimNode
-      case value.kind
-      of nnkSym, nnkIdent:
-        strLit = newLit($value)
-      of nnkAccQuoted:
-        value.expectLen(1)
-        value[0].expectKind({nnkSym, nnkIdent})
-        strLit = newLit($value)
-      else: value.expectKind({nnkSym, nnkIdent, nnkAccQuoted})
+    for value in values:
+      let
+        identLitTuple = value.getIdentAndStrLit()
+        ident = identLitTuple.ident
+        strLit = identLitTuple.strLit
       let cmpCall = newCall(compareIdent, inputIdent, strLit)
       let condition = infix(cmpCall, "==", zeroLit)
       var branchStmts = newStmtList()
       if tryParse:
-        branchStmts.add(newAssignment(targetIdent, value))
+        branchStmts.add(newAssignment(targetIdent, ident))
         branchStmts.add(resultTrueAssignment)
       else:
-        branchStmts = newAssignment(resultIdent, value)
+        branchStmts = newAssignment(resultIdent, ident)
       let branchNode = newNimNode(nnkElifBranch)
       branchNode.add(condition, branchStmts)
       ifStmt.add(branchNode)
@@ -151,8 +180,10 @@ proc createStringParseProc(`distinct`, values: NimNode, tryParse = false, export
       pragmaExpr = newColonExpr(ident("raises"), bracket)
     procDef.addPragma(pragmaExpr)
   result = procDef
+  when not(defined(release)) or defined(debug):
+    echo result.repr
 
-macro implementDistinctEnum*(`distinct`, base: typed, knownValues: varargs[untyped]): typed =
+proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray[NimNode]): NimNode {.compileTime.} =
   ## Declares common procs for a distinct value type with the specified base type
   ## 
   ## Common procs for distinct value types:
@@ -169,8 +200,7 @@ macro implementDistinctEnum*(`distinct`, base: typed, knownValues: varargs[untyp
   # echo treeRepr(base)
   base.expectKind({nnkIdent, nnkSym})
   # echo treeRepr(knownValues)
-  knownValues.expectKind({nnkArgList, nnkBracket})
-
+  
   result = newStmtList()
   result.add(createBorrowInfixOperator(`distinct`, base, "==", docString = "Equality (``==``) " &
     "operator for the $1 type. Comparison is done by converting both the left and right argument to " & 
@@ -179,11 +209,82 @@ macro implementDistinctEnum*(`distinct`, base: typed, knownValues: varargs[untyp
   result.add(createStringParseProc(`distinct`, knownValues))
   result.add(createStringParseProc(`distinct`, knownValues, tryParse = true))
 
+macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
+  ## Declares common procs for a distinct value type with the specified base type
+  ##
+  ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
+  ## 
+  ## Common procs for distinct value types:
+  ## - Equality (``==``) operator, comparing by using the base type value
+  ## - Stringify (``$``) operator, which returns the matching identifier name in **all uppercase**
+  ##   specified in the ``knownValues`` parameter.
+  ## - ``parse<distinct>`` which parses a string value using case-insensitive matching against
+  ##   the identifiers specified in the ``knownValues`` parameter. Throws a ``ValueError`` if
+  ##   no match is found
+  ## - ``tryParse<distinct>`` does the same as ``parse<distinct>``, but writes the result into a
+  ##   var argument and returns a boolean value to indicate success. Does not throw an error.
+  let 
+    typedescTuple = getDistinctAndBaseSym(typ)
+    distinctSym = typedescTuple.`distinct`
+    baseSym = typedescTuple.base
+  knownValueDecl.expectKind(nnkStmtList)
+  result = knownValueDecl
+  var knownValueIdents = newSeq[NimNode]()
+  for i in 0 ..< knownValueDecl.len:
+    let declSect = knownValueDecl[i]
+    case declSect.kind
+    of nnkConstSection, nnkLetSection, nnkVarSection:
+      for j in 0 ..< declSect.len:
+        let identDefs = declSect[j]
+        case identDefs.kind
+        of nnkConstDef, nnkIdentDefs:
+          for k in 0 ..< (identDefs.len - 2):
+            let
+              variableDef = identDefs[k]
+              variableDefTuple = variableDef.getIdentAndStrLit
+              variableIdent = variableDefTuple.ident
+            knownValueIdents.add(variableIdent)
+        else: continue
+    else: continue
+  result.add(implementDistinctEnumProc(distinctSym, baseSym, knownValueIdents))
+
+type DistinctInt2 = distinct int
+
+implementDistinctEnum(DistinctInt2):
+  echo "Hello World"
+
 when isMainModule:
   type DistinctInt = distinct int
-  const zero = 0.DistinctInt
-  const one = 1.DistinctInt
-  implementDistinctEnum(DistinctInt, int, zero, one)
+  implementDistinctEnum(DistinctInt):
+    const zero = 0.DistinctInt
+    const one = 1.DistinctInt
+
+  #[
+    Generates:
+proc `==`*(a, b: DistinctInt): bool =
+  a.int == b.int
+
+proc `$`*(v: DistinctInt): string =
+  if v == zero: "ZERO" elif v == one: "ONE" else: $ v.int
+
+proc parseDistinctInt*(s: string): DistinctInt {.raises: [ValueError].} =
+  if cmpRunesIgnoreCase(s, "zero") == 0:
+    result = zero
+  elif cmpRunesIgnoreCase(s, "one") == 0:
+    result = one
+  else:
+    raise newException(ValueError, format("Cannot parse \"$#\" as DistinctInt", s))
+  
+proc tryParseDistinctInt*(s: string; value: var DistinctInt): bool =
+  if cmpRunesIgnoreCase(s, "zero") == 0:
+    value = zero
+    result = true
+  elif cmpRunesIgnoreCase(s, "one") == 0:
+    value = one
+    result = true
+  else:
+    result = false
+  ]#
 
   doAssert $zero == "ZERO"
   doAssert $one == "ONE"
