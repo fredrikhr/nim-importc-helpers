@@ -17,5 +17,3 @@ macro importc*(namingRule: ImportcNamingRule, ast: typed): typed =
     discard
   else: discard
 
-when isMainModule:
-  proc testProc(): void {.importc: inrAllUppercase.}

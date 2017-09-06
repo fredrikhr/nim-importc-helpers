@@ -39,4 +39,9 @@ task docall, "Document srcDir recursively":
   recurseDir(srcDir, docDir)
 
 task test, "Test runs the package":
-  exec "nim compile --run -o:" & ("bin" / packageName) & " " & (srcDir / packageName)
+  for srcFile in listFiles("test"):
+    if srcFile.endsWith(".nim"):
+      let srcName = srcFile.splitFile().name
+      let cmd = "nim compile --run --nimcache:obj -o:\"" & ("bin" / srcName) & "\" \"" & srcFile & "\""
+      echo cmd
+      exec cmd

@@ -1,7 +1,9 @@
 // Place your settings in this file to overwrite default and user settings.
 {
     "nim.project": [
-        "src/importc_helpers.nim"
+        "src/importc_helpers.nim",
+        "test/timportc_helpers.nim",
+        "test/timportc_distinct.nim"
     ],
     "nim.lintOnSave": true
 }
