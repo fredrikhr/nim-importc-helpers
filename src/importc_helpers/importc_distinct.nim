@@ -90,7 +90,7 @@ proc createStringifyOperator(`distinct`, base: NimNode, values: openarray[NimNod
       let
         identLitTuple = value.getIdentAndStrLit()
         ident = identLitTuple.ident
-        strLit = newLit(unicode.toUpper(identLitTuple.strLit.strVal))
+        strLit = identLitTuple.strLit
       let cond = infix(valueIdent, "==", ident)
       ifStmt.add(newNimNode(nnkElifExpr).add(cond, strLit))
     ifStmt.add(newNimNode(nnkElseExpr).add(elseValue))
@@ -182,7 +182,7 @@ proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray
   ## 
   ## Common procs for distinct value types:
   ## - Equality (``==``) operator, comparing by using the base type value
-  ## - Stringify (``$``) operator, which returns the matching identifier name in **all uppercase**
+  ## - Stringify (``$``) operator, which returns the matching identifier name
   ##   specified in the ``knownValues`` parameter.
   ## - ``parse<distinct>`` which parses a string value using case-insensitive matching against
   ##   the identifiers specified in the ``knownValues`` parameter. Throws a ``ValueError`` if
