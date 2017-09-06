@@ -109,7 +109,7 @@ proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryP
     inputIdent = ident("s")
     inputType = ident("string")
     resultIdent = ident("result")
-    compareIdent = ident("cmpRunesIgnoreCase")
+    compareIdent = bindSym("cmpRunesIgnoreCase")
     zeroLit = newLit(0)
     targetIdent = ident("value")
     resultTrueAssignment = newAssignment(resultIdent, newLit(true))
