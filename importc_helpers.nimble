@@ -18,6 +18,7 @@ before test:
 
 before docall:
   mkDir "doc"
+  mkDir("doc" / "test")
 
 task docall, "Document srcDir recursively":
   proc recurseDir(srcDir, docDir: string, nimOpts: string = "") =
@@ -37,6 +38,8 @@ task docall, "Document srcDir recursively":
 
   let docDir = "doc"
   recurseDir(srcDir, docDir)
+  recurseDir("test", docDir / "test")
+
 
 task test, "Test runs the package":
   for srcFile in listFiles("test"):
