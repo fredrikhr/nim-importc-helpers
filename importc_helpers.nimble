@@ -1,7 +1,7 @@
 # Package
 
 packageName   = "importc_helpers"
-version       = "0.2.3"
+version       = "0.2.4"
 author        = "Fredrik Høisæther Rasch"
 description   = "Nim support library for importing symbols from C"
 license       = "MIT"
