@@ -6,7 +6,7 @@
 ## Distinct Value types:
 ##     Like an enum type, but with an actual base type, so that the values can
 ##     be used in ``importc`` calls.
-##     
+##
 ##     In C, this would typically manifest itself as multiple ``#define``
 ##     statements each with a common prefix and an all caps identifier
 ##
@@ -14,7 +14,7 @@
 ##     example of this. (ref.: https://msdn.microsoft.com/en-us/library/cc704587.aspx )
 ##
 ## Distinct Flag types:
-##     Similar to the one above, but with the values being arranged for a 
+##     Similar to the one above, but with the values being arranged for a
 ##     bit-pattern. Flag types also require the binary ``and``, ``or`` and ``not``
 ##     operators to be useful.
 
@@ -179,7 +179,7 @@ proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryP
 
 proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray[NimNode]): NimNode {.compileTime.} =
   ## Declares common procs for a distinct value type with the specified base type
-  ## 
+  ##
   ## Common procs for distinct value types:
   ## - Equality (``==``) operator, comparing by using the base type value
   ## - Stringify (``$``) operator, which returns the matching identifier name
@@ -194,10 +194,10 @@ proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray
   # echo treeRepr(base)
   base.expectKind({nnkIdent, nnkSym})
   # echo treeRepr(knownValues)
-  
+
   result = newStmtList()
   result.add(createBorrowInfixOperator(`distinct`, base, "==", docString = "Equality (``==``) " &
-    "operator for the $1 type. Comparison is done by converting both the left and right argument to " & 
+    "operator for the $1 type. Comparison is done by converting both the left and right argument to " &
     "the $2 type and calling the ``==`` operator for the $2 type.".format(`distinct`, base)))
   result.add(createStringifyOperator(`distinct`, base, knownValues))
   result.add(createStringParseProc(`distinct`, knownValues))
@@ -207,7 +207,7 @@ macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
   ## Declares common procs for a distinct value type with the specified base type
   ##
   ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
-  ## 
+  ##
   ## Common procs for distinct value types:
   ## - Equality (``==``) operator, comparing by using the base type value
   ## - Stringify (``$``) operator, which returns the matching identifier name
@@ -217,7 +217,7 @@ macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
   ##   no match is found
   ## - ``tryParse<distinct>`` does the same as ``parse<distinct>``, but writes the result into a
   ##   var argument and returns a boolean value to indicate success. Does not throw an error.
-  let 
+  let
     typedescTuple = getDistinctAndBaseSym(typ)
     distinctSym = typedescTuple.`distinct`
     baseSym = typedescTuple.base
@@ -251,7 +251,7 @@ proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: p
     procBody.add(docComment)
   let
     aIdent = ident("a")
-    bIdent = ident("b")    
+    bIdent = ident("b")
     resultIdent = ident("result")
     returnStmt = newAssignment(resultIdent, resultValue(aIdent, bIdent))
   procBody.add(returnStmt)
@@ -321,49 +321,49 @@ proc createSimpleOperatorProc(`distinct`: NimNode, operator: string, resultValue
 
 proc createContainsFlagsProc(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(newPar(infix(bIdent, "and", aIdent)), "==", bIdent)
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Returns whether all bits in ``b`` are set in ``a`` and is equal to ``(b and a) == b``.".format(`distinct`)
   result = createSimpleProc(ident("contains"), `distinct`, bindSym("bool"), resultProc, exportable, docStringVal)
 
 proc createUnionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "or", bIdent)
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Union operator for $1 values. Returns the binary AND of the two operands and is equal to ``a or b``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "+", resultProc, exportable, docStringVal)
 
 proc createIntersectionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "and", bIdent)
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Intersection operator for $1 values. Returns the binary AND of the two operands and is equal to ``a and b``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "*", resultProc, exportable, docStringVal)
 
 proc createDifferenceFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "and", newPar(prefix(bIdent, "not")))
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Difference operator for $1 values. Returns ``a`` intersected with the binary complement of ``b`` and is equal to ``a and (not b)``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "-", resultProc, exportable, docStringVal)
 
 proc createSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "in", bIdent)
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Subset operator for $1 values. Returns whether ``a`` is a subset of ``b`` and is equal to ``(a and b) == a``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, bindSym("bool"), "<=", resultProc, exportable, docStringVal)
 
 proc createProperSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(newPar(infix(aIdent, "!=", bIdent)), "and", newPar(infix(aIdent, "in", bIdent)))
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Proper Subset operator for $1 values. Returns whether ``a`` is a proper subset of ``b`` and is equal to ``(a != b) and (a in b)``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, bindSym("bool"), "<", resultProc, exportable, docStringVal)
 
 proc createIncludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = nil): NimNode {.compileTime.} =
   let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "+", bIdent)
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Include flags proc for $1 values. Same as ``a = a + b``.".format(`distinct`)
   result = createSimpleVarAssignProc(ident("incl"), `distinct`, asgnProc, exportable, docStringVal)
 
 proc createExcludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = nil): NimNode {.compileTime.} =
   let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "-", bIdent)
-  let docStringVal = if docString.len > 0: docString 
+  let docStringVal = if docString.len > 0: docString
     else: "Exclude flags proc for $1 values. Same as ``a = a - b``.".format(`distinct`)
   result = createSimpleVarAssignProc(ident("excl"), `distinct`, asgnProc, exportable, docStringVal)
 
@@ -406,10 +406,10 @@ proc implementDistinctFlagsProc(`distinct`, base: NimNode, knownValues: openArra
   # echo treeRepr(base)
   base.expectKind({nnkIdent, nnkSym})
   # echo treeRepr(knownValues)
-  
+
   result = newStmtList()
   result.add(createBorrowInfixOperator(`distinct`, base, "==", docString = "Equality (``==``) " &
-    "operator for the $1 type. Comparison is done by converting both the left and right argument to " & 
+    "operator for the $1 type. Comparison is done by converting both the left and right argument to " &
     "the $2 type and calling the ``==`` operator for the $2 type.".format(`distinct`, base)))
   let
     andResult = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
@@ -419,13 +419,13 @@ proc implementDistinctFlagsProc(`distinct`, base: NimNode, knownValues: openArra
     notResult = proc(vIdent: NimNode): NimNode {.noSideEffect.} =
       newDotExpr(newPar(newCall(ident("not"), newDotExpr(vIdent, base))), `distinct`)
   result.add(createSimpleOperatorProc(`distinct`, "and", andResult, docString = "Binary AND (``and``) " &
-    "operator (``&`` in C-like languages) for the $1 type. Implemented by converting both the left and right argument to " & 
+    "operator (``&`` in C-like languages) for the $1 type. Implemented by converting both the left and right argument to " &
     "the $2 type and calling the ``and`` operator for the $2 type.".format(`distinct`, base)))
   result.add(createSimpleOperatorProc(`distinct`, "or", orResult, docString = "Binary OR (``or``) " &
-    "operator (``|`` in C-like languages) for the $1 type. Implemented by converting both the left and right argument to " & 
+    "operator (``|`` in C-like languages) for the $1 type. Implemented by converting both the left and right argument to " &
     "the $2 type and calling the ``or`` operator for the $2 type.".format(`distinct`, base)))
   result.add(createSimpleOperatorProc(`distinct`, "not", notResult, docString = "Binary complement (``not``) " &
-    "operator (``~`` in C-like languages) for the $1 type. Implemented by converting both the argument to " & 
+    "operator (``~`` in C-like languages) for the $1 type. Implemented by converting both the argument to " &
     "the $2 type and calling the ``not`` operator for the $2 type.".format(`distinct`, base)))
   result.add(createContainsFlagsProc(`distinct`))
   result.add(createUnionFlagsOperator(`distinct`))
@@ -443,7 +443,7 @@ macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
   ## Declares common procs for a distinct flags type with the specified base type
   ##
   ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
-  ## 
+  ##
   ## Common procs for distinct value types:
   ## - Equality (``==``) operator, comparing by using the base type value
   ## - Binary AND (``and``) operator (``&`` in C), using the ``and`` operator on the base type value
@@ -465,7 +465,7 @@ macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
   ## - ``tryParse<distinct>`` does the same as ``parse<distinct>``, but writes the result into a
   ##   var argument and returns a boolean value to indicate success. Does not throw an error.
   ## **Note that parsing flags values only works for one flag at a time.**
-  let 
+  let
     typedescTuple = getDistinctAndBaseSym(typ)
     distinctSym = typedescTuple.`distinct`
     baseSym = typedescTuple.base

@@ -79,7 +79,7 @@ implementDistinctFlags(Bitflags32):
     bit_30 = (1 shl 30).Bitflags32
     bit_31 = (1 shl 31).Bitflags32
 
-let 
+let
   v1 = bit_0 or bit_1
   v2 = 3.Bitflags32
 doAssert v1 == v2
@@ -104,7 +104,7 @@ let
   v8 = v5 - v1
 doAssert v7 == bit_4
 doAssert bit_0 notin v8
-  
+
 var v9 = not bit_28
 v9.excl bit_4
 doAssert bit_4 notin v9
