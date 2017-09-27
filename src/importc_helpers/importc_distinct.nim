@@ -52,13 +52,16 @@ proc getIdentAndStrLit(value: NimNode): tuple[ident, strLit: NimNode] {.compileT
   else: ident.expectKind({nnkSym, nnkIdent, nnkAccQuoted})
   result = (ident, strLit)
 
-proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string, returnType: NimNode = bindSym("bool"), exportable: bool = true, docString: string = nil): NimNode =
+proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string,
+  returnType: NimNode = bindSym("bool"), exportable: bool = true,
+  docString: string = nil): NimNode =
   let
     leftArgIdent = ident("a")
     rightArgIdent = ident("b")
     leftBaseValue = newDotExpr(leftArgIdent, base) # a.base
     rightBaseValue = newDotExpr(rightArgIdent, base) # b.base
-    argsIdentDefs = newNimNode(nnkIdentDefs).add(leftArgIdent, rightArgIdent, `distinct`, newEmptyNode())
+    argsIdentDefs = newNimNode(nnkIdentDefs)
+      .add(leftArgIdent, rightArgIdent, `distinct`, newEmptyNode())
   var procBody = infix(leftBaseValue, op, rightBaseValue)
   if docString.len > 0:
     var docComment = newNimNode(nnkCommentStmt)
@@ -70,11 +73,13 @@ proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string, returnType
     name = procName, params = [returnType, argsIdentDefs],
     body = procBody)
 
-proc createStringifyOperator(`distinct`, base: NimNode, values: openarray[NimNode], exportable: bool = true, docString: string = nil): NimNode =
+proc createStringifyOperator(`distinct`, base: NimNode,
+  values: openarray[NimNode], exportable: bool = true,
+  docString: string = nil): NimNode =
   var procBody = newStmtList()
   var docComment = newNimNode(nnkCommentStmt)
   if docString.isNil or docString.len < 1:
-    docComment.strVal = "Stringify (``$$``) operator that converts a ``$1`` value to its string representation".format(`distinct`)
+    docComment.strVal = ("Stringify (``$$``) operator that converts a ``$1`` value to its string representation").format(`distinct`)
     discard
   else:
     docComment.strVal = docString
@@ -103,9 +108,11 @@ proc createStringifyOperator(`distinct`, base: NimNode, values: openarray[NimNod
     body = procBody)
   result = procDef
 
-proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryParse = false, exportable = true): NimNode =
+proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode],
+  tryParse = false, exportable = true): NimNode =
   let
-    procIdent = if tryParse: ident("tryParse" & $`distinct`) else: ident("parse" & $`distinct`)
+    procIdent = if tryParse: ident("tryParse" & $`distinct`)
+      else: ident("parse" & $`distinct`)
     inputIdent = ident("s")
     inputType = ident("string")
     resultIdent = ident("result")
@@ -116,16 +123,19 @@ proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryP
     resultFalseAssignment = newAssignment(resultIdent, newLit(false))
     messageFormatLit = newLit("Cannot parse \"$$#\" as $#".format(`distinct`))
     messageCall = newCall(bindSym("format"), messageFormatLit, inputIdent)
-    newExceptionCall = newCall(bindSym("newException"), ident("ValueError"), messageCall)
+    newExceptionCall = newCall(
+      bindSym("newException"),
+      ident("ValueError"),
+      messageCall)
     raiseStmt = newNimNode(nnkRaiseStmt).add(newExceptionCall)
   var procBody = newStmtList()
   var docComment = newNimNode(nnkCommentStmt)
   if tryParse:
-    docComment.strVal = "Attempts to parse the string ``s`` to a ``$#`` value. Sets ``value`` to the parsed value and returns ``true`` if successful. Returns ``false`` and leaves ``value`` unmodified otherwise.".format(`distinct`)
-    discard
+    docComment.strVal = ("Attempts to parse the string ``s`` to a ``$#`` value. Sets ``value`` to the parsed value and returns ``true`` if successful. Returns ``false`` and leaves ``value`` unmodified otherwise.")
+      .format(`distinct`)
   else:
-    docComment.strVal = "Parse the string ``s`` to a ``$#`` value. Raises a ``ValueError`` if unsuccessful.".format(`distinct`)
-    discard
+    docComment.strVal = ("Parse the string ``s`` to a ``$#`` value. Raises a ``ValueError`` if unsuccessful.")
+      .format(`distinct`)
   procBody.add(docComment)
   if values.len > 0:
     var ifStmt = newNimNode(nnkIfStmt)
@@ -164,7 +174,8 @@ proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryP
   else:
     paramsSeq.add(`distinct`)
   paramsSeq.add(newIdentDefs(inputIdent, inputType))
-  if tryParse: paramsSeq.add(newIdentDefs(targetIdent, newNimNode(nnkVarTy).add(`distinct`)))
+  if tryParse: paramsSeq.add(newIdentDefs(targetIdent, newNimNode(nnkVarTy)
+    .add(`distinct`)))
   var procDef = newProc(
     name = if exportable: postfix(procIdent, "*") else: procIdent,
     params = paramsSeq,
@@ -177,7 +188,8 @@ proc createStringParseProc(`distinct`: NimNode, values: openarray[NimNode], tryP
     procDef.addPragma(pragmaExpr)
   result = procDef
 
-proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray[NimNode]): NimNode {.compileTime.} =
+proc implementDistinctEnumProc(`distinct`, base: NimNode,
+  knownValues: openArray[NimNode]): NimNode {.compileTime.} =
   ## Declares common procs for a distinct value type with the specified base type
   ##
   ## Common procs for distinct value types:
@@ -203,8 +215,13 @@ proc implementDistinctEnumProc(`distinct`, base: NimNode, knownValues: openArray
   result.add(createStringParseProc(`distinct`, knownValues))
   result.add(createStringParseProc(`distinct`, knownValues, tryParse = true))
 
-macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
+macro implementDistinctEnum*(typ: typedesc, noStrings: static[bool], knownValueDecl: untyped): typed =
   ## Declares common procs for a distinct value type with the specified base type
+  ##
+  ## Optionally, suppresses the generation of stringify and parse procs, to prevent string literals
+  ## increasing compile time and output binary size. If ``noStrings`` is set to ``true`` at
+  ## compile time, the stringify (``$``) operator, the ``parse`` and the ``tryParse`` procs are
+  ## not generated.
   ##
   ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
   ##
@@ -241,6 +258,22 @@ macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
         else: continue
     else: continue
   result.add(implementDistinctEnumProc(distinctSym, baseSym, knownValueIdents))
+
+macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
+  ## Declares common procs for a distinct value type with the specified base type
+  ##
+  ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
+  ##
+  ## Common procs for distinct value types:
+  ## - Equality (``==``) operator, comparing by using the base type value
+  ## - Stringify (``$``) operator, which returns the matching identifier name
+  ##   specified in the ``knownValues`` parameter.
+  ## - ``parse<distinct>`` which parses a string value using case-insensitive matching against
+  ##   the identifiers specified in the ``knownValues`` parameter. Throws a ``ValueError`` if
+  ##   no match is found
+  ## - ``tryParse<distinct>`` does the same as ``parse<distinct>``, but writes the result into a
+  ##   var argument and returns a boolean value to indicate success. Does not throw an error.
+  getAst(implementDistinctEnum(typ, false, knownValueDecl))
 
 proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = nil): NimNode {.compileTime.} =
   var
@@ -320,49 +353,57 @@ proc createSimpleOperatorProc(`distinct`: NimNode, operator: string, resultValue
   createSimpleOperatorProc(`distinct`, `distinct`, operator, resultValue, exportable, docString)
 
 proc createContainsFlagsProc(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
-  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(newPar(infix(bIdent, "and", aIdent)), "==", bIdent)
+  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(newPar(infix(bIdent, "and", aIdent)), "==", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Returns whether all bits in ``b`` are set in ``a`` and is equal to ``(b and a) == b``."
   result = createSimpleProc(ident("contains"), `distinct`, bindSym("bool"), resultProc, exportable, docStringVal)
 
 proc createUnionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
-  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "or", bIdent)
+  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(aIdent, "or", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Union operator for ``$#`` values. Returns the binary AND of the two operands and is equal to ``a or b``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "+", resultProc, exportable, docStringVal)
 
 proc createIntersectionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
-  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "and", bIdent)
+  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(aIdent, "and", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Intersection operator for ``$#`` values. Returns the binary AND of the two operands and is equal to ``a and b``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "*", resultProc, exportable, docStringVal)
 
 proc createDifferenceFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
-  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "and", newPar(prefix(bIdent, "not")))
+  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(aIdent, "and", newPar(prefix(bIdent, "not")))
   let docStringVal = if docString.len > 0: docString
     else: "Difference operator for ``$#`` values. Returns ``a`` intersected with the binary complement of ``b`` and is equal to ``a and (not b)``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "-", resultProc, exportable, docStringVal)
 
 proc createSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
-  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "in", bIdent)
+  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(aIdent, "in", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Subset operator for ``$#`` values. Returns whether ``a`` is a subset of ``b`` and is equal to ``(a and b) == a``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, bindSym("bool"), "<=", resultProc, exportable, docStringVal)
 
 proc createProperSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
-  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(newPar(infix(aIdent, "!=", bIdent)), "and", newPar(infix(aIdent, "in", bIdent)))
+  let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(newPar(infix(aIdent, "!=", bIdent)), "and", newPar(infix(aIdent, "in", bIdent)))
   let docStringVal = if docString.len > 0: docString
     else: "Proper Subset operator for ``$1`` values. Returns whether ``a`` is a proper subset of ``b`` and is equal to ``(a != b) and (a in b)``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, bindSym("bool"), "<", resultProc, exportable, docStringVal)
 
 proc createIncludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = nil): NimNode {.compileTime.} =
-  let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "+", bIdent)
+  let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(aIdent, "+", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Include flags proc for ``$1`` values. Same as ``a = a + b``.".format(`distinct`)
   result = createSimpleVarAssignProc(ident("incl"), `distinct`, asgnProc, exportable, docStringVal)
 
 proc createExcludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = nil): NimNode {.compileTime.} =
-  let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} = infix(aIdent, "-", bIdent)
+  let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
+    infix(aIdent, "-", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Exclude flags proc for ``$1`` values. Same as ``a = a - b``.".format(`distinct`)
   result = createSimpleVarAssignProc(ident("excl"), `distinct`, asgnProc, exportable, docStringVal)
@@ -372,35 +413,65 @@ proc createStringifyFlagsOperator(`distinct`, base: NimNode, values: openarray[N
   var docComment = newNimNode(nnkCommentStmt)
   if docString.isNil or docString.len < 1:
     docComment.strVal = "Stringify (``$$``) operator that converts a ``$1`` value to its string representation".format(`distinct`)
-    discard
   else:
     docComment.strVal = docString
-    discard
   procBody.add(docComment)
   let
-    valueIdent = ident("v")
     stringify = newNimNode(nnkAccQuoted).add(ident("$"))
-    elseValue = prefix(newDotExpr(valueIdent, base), "$")
-  if values.len > 0:
-    var ifStmt = newNimNode(nnkIfExpr)
-    for value in values:
-      let
-        identLitTuple = value.getIdentAndStrLit()
-        ident = identLitTuple.ident
-        strLit = identLitTuple.strLit
-      let cond = infix(valueIdent, "==", ident)
-      ifStmt.add(newNimNode(nnkElifExpr).add(cond, strLit))
-    ifStmt.add(newNimNode(nnkElseExpr).add(elseValue))
-    procBody.add(ifStmt)
-  else:
-    procBody.add(elseValue)
+    stringSym = bindSym("string")
+    seqSym = bindSym("seq")
+    valueIdent = ident("v")
+    xIdent = ident("x")
+    xIdentDefs = newIdentDefs(xIdent, newEmptyNode(), valueIdent)
+    tIdent = ident("t")
+    tIdentDefs = newIdentDefs(tIdent, base)
+    sseqIdent = ident("sseq")
+    sseqType = newNimNode(nnkBracketExpr).add(seqSym, stringSym)
+    sseqInitValue = prefix(newNimNode(nnkBracket), "@")
+    sseqIdentDefs = newIdentDefs(sseqIdent, sseqType, sseqInitValue)
+    addSym = bindSym("add")
+    exclIdent = ident("excl")
+    resultIdent = ident("result")
+  procBody.add(newNimNode(nnkVarSection).add(xIdentDefs, tIdentDefs, sseqIdentDefs))
+  for knownValue in values:
+    let
+      identLitTuple = knownValue.getIdentAndStrLit()
+      knownIdent = identLitTuple.ident
+      knownStrLit = identLitTuple.strLit
+      cond = infix(knownIdent, "in", valueIdent)
+      addCall = newCall(addSym, sseqIdent, knownStrLit)
+      exclCall = newCall(exclIdent, xIdent, knownIdent)
+    procBody.add(newIfStmt((cond, newStmtList(addCall, exclCall))))
+  let
+    xBaseValue = newDotExpr(xIdent, base)
+    nonzeroCond = infix(xBaseValue, "!=", tIdent)
+    xBaseStringify = prefix(xBaseValue, "$")
+    addCall = newCall(addSym, sseqIdent, xBaseStringify)
+  procBody.add(newIfStmt((nonzeroCond, newStmtList(addCall))))
+  let
+    sJoinedIdent = ident("sJoined")
+    sJoinedValue = newCall(bindSym("join"), sseqIdent, newLit(", "))
+    sJoinedIdentDefs = newIdentDefs(sJoinedIdent, stringSym, sJoinedValue)
+  procBody.add(newNimNode(nnkLetSection).add(sJoinedIdentDefs))
+  let
+    noJoinedStringCond = infix(newCall(bindSym("len"), sJoinedIdent), "<", newLit(1))
+    valueBaseStringify = newPar(prefix(newDotExpr(valueIdent, base), "$"))
+    prefixLit = newLit("{ ")
+    postfixLit = newLit(" }")
+    altResultValue = infix(infix(prefixLit, "&", valueBaseStringify), "&", postfixLit)
+    altResultAsgn = newAssignment(resultIdent, altResultValue)
+    resultValue = infix(infix(prefixLit, "&", sJoinedIdent), "&", postfixLit)
+    resultAsgn = newAssignment(resultIdent, resultValue)
+  var resultIfStmt = newIfStmt((noJoinedStringCond, newStmtList(altResultAsgn)))
+  resultIfStmt.add(newNimNode(nnkElse).add(newStmtList(resultAsgn)))
+  procBody.add(resultIfStmt)
   let procDef = newProc(
     name = if exportable: postfix(stringify, "*") else: stringify,
-    params = [bindSym("string"), newIdentDefs(valueIdent, `distinct`)],
+    params = [stringSym, newIdentDefs(valueIdent, `distinct`)],
     body = procBody)
   result = procDef
 
-proc implementDistinctFlagsProc(`distinct`, base: NimNode, knownValues: openArray[NimNode]): NimNode {.compileTime.} =
+proc implementDistinctFlagsProc(`distinct`, base: NimNode, noStrings: bool, knownValues: openArray[NimNode]): NimNode {.compileTime.} =
   # echo treeRepr(`distinct`)
   `distinct`.expectKind({nnkIdent, nnkSym})
   # echo treeRepr(base)
@@ -435,12 +506,18 @@ proc implementDistinctFlagsProc(`distinct`, base: NimNode, knownValues: openArra
   result.add(createProperSubsetFlagsOperator(`distinct`))
   result.add(createIncludeFlagsProc(`distinct`))
   result.add(createExcludeFlagsProc(`distinct`))
-  # result.add(createStringifyOperator(`distinct`, base, knownValues))
-  result.add(createStringParseProc(`distinct`, knownValues))
-  result.add(createStringParseProc(`distinct`, knownValues, tryParse = true))
+  if not noStrings:
+    result.add(createStringifyFlagsOperator(`distinct`, base, knownValues))
+    result.add(createStringParseProc(`distinct`, knownValues))
+    result.add(createStringParseProc(`distinct`, knownValues, tryParse = true))
 
-macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
+macro implementDistinctFlags*(typ: typedesc, noStrings: static[bool], knownValueDecl: untyped): typed =
   ## Declares common procs for a distinct flags type with the specified base type
+  ##
+  ## Optionally, suppresses the generation of stringify and parse procs, to prevent string literals
+  ## increasing compile time and output binary size. If ``noStrings`` is set to ``true`` at
+  ## compile time, the stringify (``$``) operator, the ``parse`` and the ``tryParse`` procs are
+  ## not generated.
   ##
   ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
   ##
@@ -457,8 +534,8 @@ macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
   ## - A ``contains(A, e)`` proc that checks whether all bits in ``e`` are set in ``A``.
   ## - An ``incl(A, elem)`` as an alias for ``A = A + elem``
   ## - An ``excl(A, elem)`` as an alias for ``A = A - elem``
-  ## - Stringify (``$``) operator, which returns the Nim set notation for a flags value.
-  ##   E.g.: ``"{ bit_1, bit2, bit3 }"``
+  ## - | Stringify (``$``) operator, which returns the Nim set notation for a flags value.
+  ##   | E.g.: ``"{ bit_1, bit2, bit3 }"``
   ## - ``parse<distinct>`` which parses a string value using case-insensitive matching against
   ##   the identifiers specified in the ``knownValues`` parameter. Throws a ``ValueError`` if
   ##   no match is found.
@@ -488,4 +565,32 @@ macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
             knownValueIdents.add(variableIdent)
         else: continue
     else: continue
-  result.add(implementDistinctFlagsProc(distinctSym, baseSym, knownValueIdents))
+  result.add(implementDistinctFlagsProc(distinctSym, baseSym, noStrings, knownValueIdents))
+
+macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
+  ## Declares common procs for a distinct flags type with the specified base type
+  ##
+  ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
+  ##
+  ## Common procs for distinct value types:
+  ## - Equality (``==``) operator, comparing by using the base type value
+  ## - Binary AND (``and``) operator (``&`` in C), using the ``and`` operator on the base type value
+  ## - Binary OR (``or``) operator (``|`` in C), using the ``or`` operator on the base type value
+  ## - Binary complement (``not``) operator (``~`` in C), using the ``or`` operator on the base type value
+  ## - Nim's set-union (``+``) operator as an alias to `or`.
+  ## - Nim's set-intersection (``*``) operator as an alias to `and`.
+  ## - Nim's set-difference (``-``) operator.
+  ## - Nim's subset (``<=``) operator.
+  ## - Nim's strong subset (``<``) operator.
+  ## - A ``contains(A, e)`` proc that checks whether all bits in ``e`` are set in ``A``.
+  ## - An ``incl(A, elem)`` as an alias for ``A = A + elem``
+  ## - An ``excl(A, elem)`` as an alias for ``A = A - elem``
+  ## - | Stringify (``$``) operator, which returns the Nim set notation for a flags value.
+  ##   | E.g.: ``"{ bit_1, bit2, bit3 }"``
+  ## - ``parse<distinct>`` which parses a string value using case-insensitive matching against
+  ##   the identifiers specified in the ``knownValues`` parameter. Throws a ``ValueError`` if
+  ##   no match is found.
+  ## - ``tryParse<distinct>`` does the same as ``parse<distinct>``, but writes the result into a
+  ##   var argument and returns a boolean value to indicate success. Does not throw an error.
+  ## **Note that parsing flags values only works for one flag at a time.**
+  getAst(implementDistinctFlags(typ, false, knownValueDecl))

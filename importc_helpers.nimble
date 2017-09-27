@@ -1,7 +1,7 @@
 # Package
 
 packageName   = "importc_helpers"
-version       = "0.2.4"
+version       = "0.2.5"
 author        = "Fredrik Høisæther Rasch"
 description   = "Nim support library for importing symbols from C"
 license       = "MIT"
@@ -9,7 +9,7 @@ srcDir        = "src"
 
 # Dependencies
 
-requires "nim >= 0.17.0"
+requires "nim >= 0.17.1"
 
 import strutils, ospaths
 

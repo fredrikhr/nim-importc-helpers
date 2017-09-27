@@ -68,7 +68,7 @@ implementDistinctFlags(Bitflags32):
     bit_19 = (1 shl 19).Bitflags32
     bit_20 = (1 shl 20).Bitflags32
     bit_21 = (1 shl 21).Bitflags32
-    bit_22 = (1 shl 22).Bitflags32
+    # bit_22 = (1 shl 22).Bitflags32
     bit_23 = (1 shl 23).Bitflags32
     bit_24 = (1 shl 24).Bitflags32
     bit_25 = (1 shl 25).Bitflags32
@@ -111,6 +111,8 @@ doAssert bit_4 notin v9
 v9.incl bit_28
 doAssert bit_28 in v9
 
+doAssert $(v5) == "{ bit_0, bit_4, bit_6 }"
+
 doAssert "bit_31".parseBitflags32 == bit_31
 doAssert "BIT_31".parseBitflags32 == bit_31
 var v10: Bitflags32
@@ -119,3 +121,7 @@ doAssert "BIT_28".tryParseBitflags32(v10) == true and v10 == bit_28
 
 doAssert((bit_0 + bit_1) <= v1)
 doAssert bit_0 < v1
+
+let v11 = bit_0 + bit_1 + (1 shl 22).Bitflags32
+echo "v11: " & $(v11)
+doAssert $(v11) == "{ bit_0, bit_1, " & $(1 shl 22) & " }"
