@@ -4,6 +4,11 @@ This nimble package provides some helper functionality for doing
 foreign-function-interfacing (FFI) with C functions in the Nim programming
 language.
 
+* [Distinct Type Helpers](#distinct-type-helpers)
+  * [Enums as distinct Types](#enums-as-distinct-types)
+  * [Bitflags as distinct types](#bitflags-as-distinct-types)
+  * [Extra information](#extra-information)
+
 ## Distinct Type Helpers
 
 Even though Nim does have enum types, these are not always the best choice
@@ -13,7 +18,7 @@ in C APIs, but in Nim we would rather use the `set` type for that purpose.
 This nimble package provides helpers to bridge enums, semi-enums and bitflags
 from C to Nim.
 
-### Enums as Distinct Types
+### Enums as distinct Types
 
 In many C APIs, especially those that are tied to the operating system, a group
 of constants is not implemented as an enum type, but rather as a series of
@@ -133,8 +138,8 @@ proc contains(a, b: Bitflags8): bool
 proc `+`(a, b: Bitflags8): Bitflags8
 proc `*`(a, b: Bitflags8): Bitflags8
 proc `-`(a, b: Bitflags8): Bitflags8
-proc `<=`(a, b: Bitflags8): Bitflags8
-proc `<`(a, b: Bitflags8): Bitflags8
+proc `<=`(a, b: Bitflags8): bool
+proc `<`(a, b: Bitflags8): bool
 proc incl(a: var Bitflags8, b: Bitflags8): Bitflags8
 proc excl(a: var Bitflags8, b: Bitflags8): Bitflags8
 proc `$`(v: Bitflags8): string
@@ -142,12 +147,12 @@ proc parseBitflags8(s: string): Bitflags8
 proc tryParseBitflags8(s: string, v: var Bitflags8): bool
 ```
 The `==`, `contains`, `+`, `*`, `-`, `<=`, `<`, `incl`, `excl` procs provide
-the `Bitflags8` with all the types that you would get if `Bitflags8` was a `set`
+the `Bitflags8` with all the procs that you would get if `Bitflags8` was a `set`
 type.
 
 Stringify for Bitflags returns a comma-separated list of all set flags in the
 specified value, if there are bits set that have no known value associated with 
-them, the remainder is shown as it decimal representation.
+them, the remainder is shown as its decimal representation.
 ``` nim
 doAssert (bit_0 + bit_4 + bit_6) == "{ bit_0, bit_4, bit_6 }"
 doAssert (bit_0 + bit_4 + (1 shl 8).Bitflags8) == "{ bit_0, bit_4, 256 }"
