@@ -1,6 +1,6 @@
 # ImportC Helpers for Nim
 
-This nimble package provides some helper functionality for doing 
+This nimble package provides some helper functionality for doing
 foreign-function-interfacing (FFI) with C functions in the Nim programming
 language.
 
@@ -34,6 +34,7 @@ values for a distinct type, and will automatically implement the equality
 operator, and if desired, stringify and parse procs.
 
 Consider the following C code:
+
 ``` c
 #define COLOUR_RED 1
 #define COLOUR_BLUE 2
@@ -41,10 +42,12 @@ Consider the following C code:
 
 typedef int COLOUR, *PCOLOR;
 ```
+
 Even though this `COLOUR` type can easily be implemented as an enum, there are
 cases when this is not possible or will cause complications.
 
 Instead, let us implement the type above in Nim using a distinct type:
+
 ``` nim
 type Colour = distinct int32
 const
@@ -52,13 +55,15 @@ const
   colour_blue = 2.Colour
   colour_green = 3.Colour
 ```
+
 If we have a C API that returns a `COLOUR` value, and we wanted to do something
-depending on the value returned, we would now have to implement the `==` 
+depending on the value returned, we would now have to implement the `==`
 operator for the distinct `Colour` type in Nim. Sure, the implementation is
 trivial, but it still has to be done, if we do not want to cast every `Colour`
 value to an `int32` everytime we want to do something useful with it.
 
 For that purpose, this package provides the `implementDistinctEnum` macro.
+
 ``` nim
 type Colour = distinct int32
 implementDistinctEnum(Colour):
@@ -67,11 +72,13 @@ implementDistinctEnum(Colour):
     colour_blue = 2.Colour
     colour_green = 3.Colour
 ```
+
 Note that the `const` block is now nested inside the `implementDistinctEnum`
 macro invocation. The macro peeks into the const block and finds all identifier
 definitions in the block. The identifiers that are found are used by the macro
 as the *list of known values* for the `Colour` type. Then the macro generates
 the simple trivial implementations for these procs:
+
 ``` nim
 proc `==`*(a, b: Colour): bool = a.int32 == b.int32
 proc `$`*(v: Colour): string =
@@ -82,14 +89,15 @@ proc `$`*(v: Colour): string =
 proc parseColour(s: string): Colour
 proc tryParseColour(s: string, v: var Colour): bool
 ```
+
 Note that it uses the *list of known values* for the `Colour` type to implement
-the stringify and parse procs. The parse procs use case-**insensitive** 
+the stringify and parse procs. The parse procs use case-**insensitive**
 unicode comparison with the identifiers of the known values.
 
 ### Bitflags as distinct types
 
 The Nim Manual states that `set` types should be used when implementing flag
-types. However, the `set` type is not compatible with bitflags that are 
+types. However, the `set` type is not compatible with bitflags that are
 regurlarly used in C, and `set` types in Nim only support bitlength of up to
 16-bits.
 
@@ -98,6 +106,7 @@ as a distinct numeric type, and the macro will provide all the procs you would
 expect from a regular Nim `set` type.
 
 Consider the following C example:
+
 ``` c
 #define BIT_0 (1 << 0)
 #define BIT_1 (1 << 1)
@@ -110,10 +119,12 @@ Consider the following C example:
 
 typedef int BITFLAGS8, *PBITFLAGS8;
 ```
+
 *The example above is shortened to only use 8 bits out the availble 32 bits.
 Look at the test case for this package, where all 32 bits are used.*
 
 In Nim with the `implementDistinctFlags` macro:
+
 ``` nim
 type Bitflags8 = distinct int32
 implementDistinctFlags(Bitflags8):
@@ -129,6 +140,7 @@ implementDistinctFlags(Bitflags8):
 ```
 
 The macro automatically provides the following procs:
+
 ``` nim
 proc `==`(a, b: Bitflags8): bool
 proc `and`(a, b: Bitflags8): Bitflags8
@@ -146,13 +158,15 @@ proc `$`(v: Bitflags8): string
 proc parseBitflags8(s: string): Bitflags8
 proc tryParseBitflags8(s: string, v: var Bitflags8): bool
 ```
+
 The `==`, `contains`, `+`, `*`, `-`, `<=`, `<`, `incl`, `excl` procs provide
 the `Bitflags8` with all the procs that you would get if `Bitflags8` was a `set`
 type.
 
 Stringify for Bitflags returns a comma-separated list of all set flags in the
-specified value, if there are bits set that have no known value associated with 
+specified value, if there are bits set that have no known value associated with
 them, the remainder is shown as its decimal representation.
+
 ``` nim
 doAssert (bit_0 + bit_4 + bit_6) == "{ bit_0, bit_4, bit_6 }"
 doAssert (bit_0 + bit_4 + (1 shl 8).Bitflags8) == "{ bit_0, bit_4, 256 }"
@@ -164,7 +178,7 @@ For both the `implementDistinctEnum` and the `implementDistinctFlags` macros,
 there are overloads that accept a static bool argument, to indicate whether the
 macro should generate the stringify and parse procs. Since these methods carry
 the string literals in the resulting code and thus also into the output binary,
-generating these string procs can significantly increase the output binary size.  
+generating these string procs can significantly increase the output binary size.
 For example, the Windows SDK has several thousand lines of code where it defines
 `HRESULT` values that represent various error conditions. Producing a binary
 with the names of all these constants inside it can easily increase the binary
