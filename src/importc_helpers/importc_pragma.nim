@@ -1,14 +1,11 @@
-import macros, strutils
+import macros
 
 type ImportcNamingRule* = enum
   inrNone ## Perform no transformation on nim ident to produce C identifier
   inrAllUppercase
   inrCapitalize
 
-proc transformWithNamingRule(ident: string, rule: ImportcNamingRule): string =
-  ident
-
-macro importc*(namingRule: ImportcNamingRule, ast: typed): typed =
+macro importc*(namingRule: ImportcNamingRule, ast: typed): untyped =
   echo "Before:"
   echo ast.treeRepr()
   result = ast

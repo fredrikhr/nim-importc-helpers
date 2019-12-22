@@ -20,7 +20,7 @@
 
 import macros, strutils, unicode
 
-proc getDistinctAndBaseSym(t: typedesc): tuple[`distinct`, base: NimNode] {.compileTime.} =
+proc getDistinctAndBaseSym(t: NimNode): tuple[`distinct`, base: NimNode] {.compileTime.} =
   var beD = t.getType()
   beD.expectKind(nnkBracketExpr)
   beD.expectMinLen(2)
@@ -53,8 +53,8 @@ proc getIdentAndStrLit(value: NimNode): tuple[ident, strLit: NimNode] {.compileT
   result = (ident, strLit)
 
 proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string,
-  returnType: NimNode = bindSym("bool"), exportable: bool = true,
-  docString: string = nil): NimNode =
+  returnType: typedesc = bool, exportable: bool = true,
+  docString: string = ""): NimNode =
   let
     leftArgIdent = ident("a")
     rightArgIdent = ident("b")
@@ -70,15 +70,15 @@ proc createBorrowInfixOperator(`distinct`, base: NimNode, op: string,
   var procName = newNimNode(nnkAccQuoted).add(ident(op))
   if exportable: procName = postfix(procName, "*")
   result = newProc(
-    name = procName, params = [returnType, argsIdentDefs],
+    name = procName, params = [returnType.getType(), argsIdentDefs],
     body = procBody)
 
 proc createStringifyOperator(`distinct`, base: NimNode,
   values: openarray[NimNode], exportable: bool = true,
-  docString: string = nil): NimNode =
+  docString: string = ""): NimNode =
   var procBody = newStmtList()
   var docComment = newNimNode(nnkCommentStmt)
-  if docString.isNil or docString.len < 1:
+  if docString.len < 1:
     docComment.strVal = ("Stringify (``$$``) operator that converts a ``$1`` value to its string representation").format(`distinct`)
     discard
   else:
@@ -215,7 +215,7 @@ proc implementDistinctEnumProc(`distinct`, base: NimNode,
   result.add(createStringParseProc(`distinct`, knownValues))
   result.add(createStringParseProc(`distinct`, knownValues, tryParse = true))
 
-macro implementDistinctEnum*(typ: typedesc, noStrings: static[bool], knownValueDecl: untyped): typed =
+macro implementDistinctEnum*(typ: typedesc, noStrings: static[bool], knownValueDecl: untyped): untyped =
   ## Declares common procs for a distinct value type with the specified base type
   ##
   ## Optionally, suppresses the generation of stringify and parse procs, to prevent string literals
@@ -239,7 +239,7 @@ macro implementDistinctEnum*(typ: typedesc, noStrings: static[bool], knownValueD
     distinctSym = typedescTuple.`distinct`
     baseSym = typedescTuple.base
   knownValueDecl.expectKind(nnkStmtList)
-  result = knownValueDecl
+  var final = knownValueDecl.copyNimTree()
   var knownValueIdents = newSeq[NimNode]()
   for i in 0 ..< knownValueDecl.len:
     let declSect = knownValueDecl[i]
@@ -257,9 +257,10 @@ macro implementDistinctEnum*(typ: typedesc, noStrings: static[bool], knownValueD
             knownValueIdents.add(variableIdent)
         else: continue
     else: continue
-  result.add(implementDistinctEnumProc(distinctSym, baseSym, knownValueIdents))
+  final.add(implementDistinctEnumProc(distinctSym, baseSym, knownValueIdents))
+  result = final
 
-macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
+macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): untyped =
   ## Declares common procs for a distinct value type with the specified base type
   ##
   ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
@@ -275,7 +276,7 @@ macro implementDistinctEnum*(typ: typedesc, knownValueDecl: untyped): typed =
   ##   var argument and returns a boolean value to indicate success. Does not throw an error.
   getAst(implementDistinctEnum(typ, false, knownValueDecl))
 
-proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = ""): NimNode {.compileTime.} =
   var
     procBody = newStmtList()
   if docString.len > 0:
@@ -295,7 +296,7 @@ proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: p
     params = [resultType, paramsIdentDefs],
     body = procBody)
 
-proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: proc(aIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: proc(aIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = ""): NimNode {.compileTime.} =
   var
     procBody = newStmtList()
   if docString.len > 0:
@@ -314,7 +315,7 @@ proc createSimpleProc(procIdent, `distinct`, resultType: NimNode, resultValue: p
     params = [resultType, paramsIdentDefs],
     body = procBody)
 
-proc createSimpleVarAssignProc(procIdent, `distinct`: NimNode, targetValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleVarAssignProc(procIdent, `distinct`: NimNode, targetValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable = true, docString: string = ""): NimNode {.compileTime.} =
   var
     procBody = newStmtList()
   if docString.len > 0:
@@ -338,80 +339,80 @@ proc createSimpleVarAssignProc(procIdent, `distinct`: NimNode, targetValue: proc
     params = [newEmptyNode(), targetIdentDefs, valueIdentDefs],
     body = procBody)
 
-proc createSimpleOperatorProc(`distinct`, resultType: NimNode, operator: string, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleOperatorProc(`distinct`, resultType: NimNode, operator: string, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let op = newNimNode(nnkAccQuoted).add(ident(operator))
   result = createSimpleProc(op, `distinct`, resultType, resultValue, exportable, docString)
 
-proc createSimpleOperatorProc(`distinct`, resultType: NimNode, operator: string, resultValue: proc(aIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleOperatorProc(`distinct`, resultType: NimNode, operator: string, resultValue: proc(aIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let op = newNimNode(nnkAccQuoted).add(ident(operator))
   result = createSimpleProc(op, `distinct`, resultType, resultValue, exportable, docString)
 
-proc createSimpleOperatorProc(`distinct`: NimNode, operator: string, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleOperatorProc(`distinct`: NimNode, operator: string, resultValue: proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   createSimpleOperatorProc(`distinct`, `distinct`, operator, resultValue, exportable, docString)
 
-proc createSimpleOperatorProc(`distinct`: NimNode, operator: string, resultValue: proc(aIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSimpleOperatorProc(`distinct`: NimNode, operator: string, resultValue: proc(aIdent: NimNode): NimNode {.noSideEffect.}, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   createSimpleOperatorProc(`distinct`, `distinct`, operator, resultValue, exportable, docString)
 
-proc createContainsFlagsProc(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createContainsFlagsProc(`distinct`: NimNode, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(newPar(infix(bIdent, "and", aIdent)), "==", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Returns whether all bits in ``b`` are set in ``a`` and is equal to ``(b and a) == b``."
   result = createSimpleProc(ident("contains"), `distinct`, bindSym("bool"), resultProc, exportable, docStringVal)
 
-proc createUnionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createUnionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(aIdent, "or", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Union operator for ``$#`` values. Returns the binary AND of the two operands and is equal to ``a or b``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "+", resultProc, exportable, docStringVal)
 
-proc createIntersectionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createIntersectionFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(aIdent, "and", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Intersection operator for ``$#`` values. Returns the binary AND of the two operands and is equal to ``a and b``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "*", resultProc, exportable, docStringVal)
 
-proc createDifferenceFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createDifferenceFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(aIdent, "and", newPar(prefix(bIdent, "not")))
   let docStringVal = if docString.len > 0: docString
     else: "Difference operator for ``$#`` values. Returns ``a`` intersected with the binary complement of ``b`` and is equal to ``a and (not b)``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, "-", resultProc, exportable, docStringVal)
 
-proc createSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(aIdent, "in", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Subset operator for ``$#`` values. Returns whether ``a`` is a subset of ``b`` and is equal to ``(a and b) == a``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, bindSym("bool"), "<=", resultProc, exportable, docStringVal)
 
-proc createProperSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = nil): NimNode {.compileTime.} =
+proc createProperSubsetFlagsOperator(`distinct`: NimNode, exportable: bool = true, docString: string = ""): NimNode {.compileTime.} =
   let resultProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(newPar(infix(aIdent, "!=", bIdent)), "and", newPar(infix(aIdent, "in", bIdent)))
   let docStringVal = if docString.len > 0: docString
     else: "Proper Subset operator for ``$1`` values. Returns whether ``a`` is a proper subset of ``b`` and is equal to ``(a != b) and (a in b)``.".format(`distinct`)
   result = createSimpleOperatorProc(`distinct`, bindSym("bool"), "<", resultProc, exportable, docStringVal)
 
-proc createIncludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = nil): NimNode {.compileTime.} =
+proc createIncludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = ""): NimNode {.compileTime.} =
   let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(aIdent, "+", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Include flags proc for ``$1`` values. Same as ``a = a + b``.".format(`distinct`)
   result = createSimpleVarAssignProc(ident("incl"), `distinct`, asgnProc, exportable, docStringVal)
 
-proc createExcludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = nil): NimNode {.compileTime.} =
+proc createExcludeFlagsProc(`distinct`: NimNode, exportable = true, docString: string = ""): NimNode {.compileTime.} =
   let asgnProc = proc(aIdent, bIdent: NimNode): NimNode {.noSideEffect.} =
     infix(aIdent, "-", bIdent)
   let docStringVal = if docString.len > 0: docString
     else: "Exclude flags proc for ``$1`` values. Same as ``a = a - b``.".format(`distinct`)
   result = createSimpleVarAssignProc(ident("excl"), `distinct`, asgnProc, exportable, docStringVal)
 
-proc createStringifyFlagsOperator(`distinct`, base: NimNode, values: openarray[NimNode], exportable: bool = true, docString: string = nil): NimNode =
+proc createStringifyFlagsOperator(`distinct`, base: NimNode, values: openarray[NimNode], exportable: bool = true, docString: string = ""): NimNode =
   var procBody = newStmtList()
   var docComment = newNimNode(nnkCommentStmt)
-  if docString.isNil or docString.len < 1:
+  if docString.len < 1:
     docComment.strVal = "Stringify (``$$``) operator that converts a ``$1`` value to its string representation".format(`distinct`)
   else:
     docComment.strVal = docString
@@ -511,7 +512,7 @@ proc implementDistinctFlagsProc(`distinct`, base: NimNode, noStrings: bool, know
     result.add(createStringParseProc(`distinct`, knownValues))
     result.add(createStringParseProc(`distinct`, knownValues, tryParse = true))
 
-macro implementDistinctFlags*(typ: typedesc, noStrings: static[bool], knownValueDecl: untyped): typed =
+macro implementDistinctFlags*(typ: typedesc, noStrings: static[bool], knownValueDecl: untyped): untyped =
   ## Declares common procs for a distinct flags type with the specified base type
   ##
   ## Optionally, suppresses the generation of stringify and parse procs, to prevent string literals
@@ -547,7 +548,7 @@ macro implementDistinctFlags*(typ: typedesc, noStrings: static[bool], knownValue
     distinctSym = typedescTuple.`distinct`
     baseSym = typedescTuple.base
   knownValueDecl.expectKind(nnkStmtList)
-  result = knownValueDecl
+  var final = knownValueDecl.copyNimTree()
   var knownValueIdents = newSeq[NimNode]()
   for i in 0 ..< knownValueDecl.len:
     let declSect = knownValueDecl[i]
@@ -565,9 +566,10 @@ macro implementDistinctFlags*(typ: typedesc, noStrings: static[bool], knownValue
             knownValueIdents.add(variableIdent)
         else: continue
     else: continue
-  result.add(implementDistinctFlagsProc(distinctSym, baseSym, noStrings, knownValueIdents))
+  final.add(implementDistinctFlagsProc(distinctSym, baseSym, noStrings, knownValueIdents))
+  result = final
 
-macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): typed =
+macro implementDistinctFlags*(typ: typedesc, knownValueDecl: untyped): untyped =
   ## Declares common procs for a distinct flags type with the specified base type
   ##
   ## **Note**: The variable declarations in the ``knownValueDecl`` **must** all be of the distinct type.
